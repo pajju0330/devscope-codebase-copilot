@@ -1,0 +1,45 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/devscope
+    username: devscope
+    password: devscope
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+  task:
+    execution:
+      pool:
+        core-size: 4
+        max-size: 8
+        queue-capacity: 50
+
+devscope:
+  embedding:
+    provider: openai
+    model: text-embedding-3-small
+    dimensions: 1536
+    batch-size: 100
+  llm:
+    provider: openai
+    model: gpt-4o
+  ingestion:
+    supported-extensions: [.java, .py, .go, .ts, .js, .kt]
+    max-file-size-kb: 500
+    temp-dir: /tmp/devscope
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  base-url: https://api.openai.com/v1
