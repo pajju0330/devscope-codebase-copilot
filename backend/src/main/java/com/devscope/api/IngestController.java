@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -24,6 +25,21 @@ public class IngestController {
     public IngestController(IngestionService ingestionService, RepoRepository repoRepository) {
         this.ingestionService = ingestionService;
         this.repoRepository = repoRepository;
+    }
+
+    /**
+     * List all repositories.
+     * GET /repos
+     */
+    @GetMapping
+    public ResponseEntity<List<IngestResponse>> listRepos() {
+        List<IngestResponse> repos = repoRepository.findAll().stream()
+                .map(r -> new IngestResponse(r.getId(), r.getStatus(),
+                        r.getError() != null ? r.getError() : "Ready",
+                        r.getName(),
+                        r.getUrl()))
+                .toList();
+        return ResponseEntity.ok(repos);
     }
 
     /**
