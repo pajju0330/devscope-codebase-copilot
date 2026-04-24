@@ -25,21 +25,20 @@ spring:
         core-size: 4
         max-size: 8
         queue-capacity: 50
-
 devscope:
-  embedding:
-    provider: openai
-    model: text-embedding-3-small
-    dimensions: 1536
-    batch-size: 100
   llm:
-    provider: openai
-    model: gpt-4o
+    model: ${DEVSCOPE_LLM_MODEL:models/gemini-2.5-flash-lite}
+    base-url: ${DEVSCOPE_LLM_BASE_URL:https://generativelanguage.googleapis.com}
+    api-key: ${DEVSCOPE_LLM_API_KEY:${GEMINI_API_KEY:}}
+    temperature: 0.0
+    max-output-tokens: 1000
+  embedding:
+    model: ${DEVSCOPE_EMBEDDING_MODEL:models/gemini-embedding-2-preview}
+    batch-size: 100
+    max-retries: 3
+    initial-backoff-ms: 10000
+    max-backoff-ms: 80000
   ingestion:
     supported-extensions: [.java, .py, .go, .ts, .js, .kt]
     max-file-size-kb: 500
     temp-dir: /tmp/devscope
-
-openai:
-  api-key: ${OPENAI_API_KEY:}
-  base-url: https://api.openai.com/v1

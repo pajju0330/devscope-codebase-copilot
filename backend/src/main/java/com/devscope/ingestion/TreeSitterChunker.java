@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +21,7 @@ public class TreeSitterChunker {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Value("${devscope.ingestion.max-file-size-kb:500}")
-    private long maxFileSizeKb;
+    private long maxFileSizeKb = 500;
 
     private final Path chunkerScript;
 
@@ -46,6 +47,11 @@ public class TreeSitterChunker {
         }
 
         try {
+            if (!Files.isRegularFile(chunkerScript)) {
+                log.debug("Chunker script not found at {}; using fallback chunker", chunkerScript);
+                return fallbackChunk(filePath, language);
+            }
+
             ProcessBuilder pb = new ProcessBuilder(
                     "python3", chunkerScript.toString(),
                     filePath.toAbsolutePath().toString(),
@@ -79,8 +85,10 @@ public class TreeSitterChunker {
                     language
             )).toList();
 
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
             log.error("Chunker failed for {}: {}", filePath, e.getMessage());
+            return fallbackChunk(filePath, language);
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return List.of();
         }
@@ -94,5 +102,20 @@ public class TreeSitterChunker {
     private static int intVal(Map<String, Object> m, String key) {
         Object v = m.get(key);
         return v instanceof Number n ? n.intValue() : 0;
+    }
+
+    private static List<CodeChunk> fallbackChunk(Path filePath, String language) {
+        try {
+            String content = Files.readString(filePath);
+            if (content.isBlank()) {
+                return List.of();
+            }
+
+            int lineCount = content.split("\\R", -1).length;
+            return List.of(new CodeChunk(content, null, null, 1, lineCount, language));
+        } catch (IOException e) {
+            log.error("Fallback chunker failed for {}: {}", filePath, e.getMessage());
+            return List.of();
+        }
     }
 }

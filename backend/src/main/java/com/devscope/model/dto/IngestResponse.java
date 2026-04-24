@@ -5,5 +5,7 @@ import java.util.UUID;
 public record IngestResponse(
         UUID repoId,
         String status,
-        String message
+        String message,
+        String repoName,
+        String repoUrl
 ) {}

@@ -8,17 +8,17 @@ import org.springframework.web.client.RestClient;
 @Configuration
 public class AppConfig {
 
-    @Value("${openai.api-key}")
-    private String openAiApiKey;
+    @Value("${devscope.llm.api-key}")
+    private String llmApiKey;
 
-    @Value("${openai.base-url}")
-    private String openAiBaseUrl;
+    @Value("${devscope.llm.base-url}")
+    private String llmBaseUrl;
 
     @Bean
-    public RestClient openAiRestClient() {
+    public RestClient llmRestClient() {
         return RestClient.builder()
-                .baseUrl(openAiBaseUrl)
-                .defaultHeader("Authorization", "Bearer " + openAiApiKey)
+                .baseUrl(llmBaseUrl)
+                .defaultHeader("x-goog-api-key", llmApiKey)
                 .defaultHeader("Content-Type", "application/json")
                 .build();
     }

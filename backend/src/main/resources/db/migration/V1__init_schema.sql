@@ -4,11 +4,14 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE repos (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     name        TEXT        NOT NULL,
-    url         TEXT,
+    url         TEXT        NOT NULL,
     status      TEXT        NOT NULL DEFAULT 'PENDING',
     error       TEXT,
     ingested_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Ensure Git URLs are ingested at most once (nulls allowed)
+CREATE UNIQUE INDEX IF NOT EXISTS repos_url_unique_idx ON repos(url);
 
 CREATE TABLE code_chunks (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -25,8 +28,9 @@ CREATE TABLE code_chunks (
 );
 
 CREATE INDEX code_chunks_repo_id_idx ON code_chunks(repo_id);
-CREATE INDEX code_chunks_embedding_idx ON code_chunks USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 100);
+CREATE INDEX code_chunks_embedding_idx
+    ON code_chunks
+    USING hnsw (embedding vector_cosine_ops);
 
 CREATE TABLE dependency_edges (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

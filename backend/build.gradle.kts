@@ -23,7 +23,6 @@ dependencies {
 
     // Database
     implementation("org.flywaydb:flyway-core")
-    implementation("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
 
     // Code analysis
@@ -39,6 +38,12 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.testcontainers:postgresql:1.19.3")
     testImplementation("org.testcontainers:junit-jupiter:1.19.3")
+
+    compileOnly("org.projectlombok:lombok:1.18.30")
+    annotationProcessor("org.projectlombok:lombok:1.18.30")
+
+    testCompileOnly("org.projectlombok:lombok:1.18.30")
+    testAnnotationProcessor("org.projectlombok:lombok:1.18.30")
 }
 
 tasks.withType<Test> {

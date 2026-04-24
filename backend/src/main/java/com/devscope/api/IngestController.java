@@ -2,9 +2,9 @@ package com.devscope.api;
 
 import com.devscope.ingestion.IngestionService;
 import com.devscope.model.dto.IngestResponse;
-import com.devscope.model.entity.RepoEntity;
 import com.devscope.model.repository.RepoRepository;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -12,7 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.net.URI;
 import java.util.UUID;
 
 @RestController
@@ -54,7 +53,9 @@ public class IngestController {
 
         return ResponseEntity.accepted()
                 .body(new IngestResponse(repoId, "PROCESSING",
-                        "Ingestion started. Poll GET /repos/" + repoId + "/status for updates."));
+                        "Ingestion started. Poll GET /repos/" + repoId + "/status for updates.",
+                        repoName,
+                        null));
     }
 
     /**
@@ -69,12 +70,36 @@ public class IngestController {
             return ResponseEntity.of(pd).build();
         }
 
-        UUID repoId = ingestionService.createRepoRecord(request.repoName(), request.repoUrl());
-        ingestionService.ingestGitUrl(repoId, request.repoUrl());
+        String repoUrl = request.repoUrl().trim();
 
-        return ResponseEntity.accepted()
-                .body(new IngestResponse(repoId, "PROCESSING",
-                        "Ingestion started. Poll GET /repos/" + repoId + "/status for updates."));
+        return repoRepository.findFirstByUrl(repoUrl)
+                .map(existing -> ResponseEntity.ok(
+                        new IngestResponse(existing.getId(), existing.getStatus(), "Already ingested",
+                                existing.getName(), existing.getUrl())))
+                .orElseGet(() -> {
+                    UUID repoId;
+                    try {
+                        repoId = ingestionService.createRepoRecord(request.repoName(), repoUrl);
+                    } catch (DataIntegrityViolationException e) {
+                        return repoRepository.findFirstByUrl(repoUrl)
+                                .map(existing -> ResponseEntity.ok(
+                                        new IngestResponse(existing.getId(), existing.getStatus(), "Already ingested",
+                                                existing.getName(), existing.getUrl())))
+                                .orElseGet(() -> {
+                                    ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
+                                            "Failed to create repo record: " + e.getMostSpecificCause().getMessage());
+                                    return ResponseEntity.of(pd).build();
+                                });
+                    }
+
+                    ingestionService.ingestGitUrl(repoId, repoUrl);
+
+                    return ResponseEntity.accepted()
+                            .body(new IngestResponse(repoId, "PROCESSING",
+                                    "Ingestion started. Poll GET /repos/" + repoId + "/status for updates.",
+                                    request.repoName(),
+                                    repoUrl));
+                });
     }
 
     /**
@@ -85,7 +110,9 @@ public class IngestController {
     public ResponseEntity<IngestResponse> getStatus(@PathVariable UUID repoId) {
         return repoRepository.findById(repoId)
                 .map(r -> ResponseEntity.ok(new IngestResponse(r.getId(), r.getStatus(),
-                        r.getError() != null ? r.getError() : "Chunks indexed: check /query to search")))
+                        r.getError() != null ? r.getError() : "Chunks indexed: check /query to search",
+                        r.getName(),
+                        r.getUrl())))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 

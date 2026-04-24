@@ -1,17 +1,24 @@
 package com.devscope.ingestion;
 
+import com.devscope.model.dto.GeminiEmbeddingRequest;
+import com.devscope.model.dto.GeminiContent;
+import com.devscope.model.dto.GeminiPart;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class EmbeddingService {
@@ -25,10 +32,22 @@ public class EmbeddingService {
     @Value("${devscope.embedding.model:text-embedding-3-small}")
     private String model;
 
+    @Value("${devscope.llm.api-key}")           // Changed property name (recommended)
+    private String llmApiKey;
+
     @Value("${devscope.embedding.batch-size:100}")
     private int batchSize;
 
-    public EmbeddingService(@Qualifier("openAiRestClient") RestClient restClient) {
+    @Value("${devscope.embedding.max-retries:3}")
+    private int maxRetries;
+
+    @Value("${devscope.embedding.initial-backoff-ms:1000}")
+    private long initialBackoffMs;
+
+    @Value("${devscope.embedding.max-backoff-ms:8000}")
+    private long maxBackoffMs;
+
+    public EmbeddingService(@Qualifier("llmRestClient") RestClient restClient) {
         this.restClient = restClient;
     }
 
@@ -51,32 +70,35 @@ public class EmbeddingService {
 
     private List<float[]> embedBatch(List<String> texts) {
         List<String> truncated = texts.stream().map(this::truncate).toList();
-        Map<String, Object> request = Map.of("model", model, "input", truncated);
-
+        List<GeminiEmbeddingRequest> requestData = new ArrayList<>();
+        truncated.forEach(
+                text -> {
+                    GeminiEmbeddingRequest request = GeminiEmbeddingRequest.builder().content(
+                            GeminiContent.builder().parts(
+                                    List.of(GeminiPart.builder().text(text).build())
+                            ).build()
+                    ).model(model).build();
+                    requestData.add(request);
+                }
+        );
+        Map<String, Object> request = Map.of("requests", requestData);
+        StringBuilder sb = new StringBuilder();
+        sb.append("/v1beta/");
+        sb.append(model);
+        sb.append(":batchEmbedContents");
         try {
-            String responseBody = restClient.post()
-                    .uri("/embeddings")
-                    .body(request)
-                    .retrieve()
-                    .body(String.class);
+            String responseBody = executeEmbeddingRequestWithRetry(sb.toString(), request);
 
             JsonNode root = MAPPER.readTree(responseBody);
-            JsonNode data = root.get("data");
-
-            float[][] ordered = new float[texts.size()][];
-            for (JsonNode item : data) {
-                int index = item.get("index").asInt();
-                JsonNode embeddingNode = item.get("embedding");
-                float[] vec = new float[embeddingNode.size()];
-                for (int j = 0; j < embeddingNode.size(); j++) {
-                    vec[j] = (float) embeddingNode.get(j).asDouble();
-                }
-                ordered[index] = vec;
-            }
-
             List<float[]> result = new ArrayList<>();
-            for (float[] v : ordered) {
-                if (v != null) result.add(v);
+
+            for (int i = 0; i < root.get("embeddings").size(); ++i){
+                ArrayNode values = (ArrayNode) root.get("embeddings").get(i).get("values");
+                float[] arr = new float[values.size()];
+                for(int j = 0; j < values.size(); ++j){
+                    arr[j] = (float) values.get(j).asDouble();
+                }
+                result.add(arr);
             }
             return result;
 
@@ -84,6 +106,49 @@ public class EmbeddingService {
             log.error("Embedding batch failed: {}", e.getMessage());
             // Return zero vectors so the pipeline doesn't abort entirely
             return texts.stream().map(t -> new float[1536]).toList();
+        }
+    }
+
+    private String executeEmbeddingRequestWithRetry(String uri, Map<String, Object> request) {
+        int attempt = 0;
+        while (true) {
+            try {
+                return restClient.post()
+                        .uri(uri)
+                        .body(request)
+                        .retrieve()
+                        .body(String.class);
+            } catch (RestClientResponseException e) {
+                if (!isTooManyRequests(e) || attempt >= maxRetries) {
+                    throw e;
+                }
+
+                long delayMs = backoffDelayMs(attempt);
+                attempt++;
+                log.warn("Embedding batch rate limited. Retrying attempt {}/{} after {} ms",
+                        attempt, maxRetries, delayMs);
+                sleep(delayMs);
+            }
+        }
+    }
+
+    private boolean isTooManyRequests(RestClientResponseException e) {
+        return e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS;
+    }
+
+    private long backoffDelayMs(int retryIndex) {
+        long exponentialDelay = initialBackoffMs * (1L << Math.min(retryIndex, 30));
+        long cappedDelay = Math.min(exponentialDelay, maxBackoffMs);
+        long jitterMs = ThreadLocalRandom.current().nextLong(0, 251);
+        return cappedDelay + jitterMs;
+    }
+
+    private void sleep(long delayMs) {
+        try {
+            Thread.sleep(delayMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while backing off embedding retry", e);
         }
     }
 

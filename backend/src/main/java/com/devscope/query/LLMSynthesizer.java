@@ -1,5 +1,9 @@
 package com.devscope.query;
 
+import com.devscope.model.dto.GeminiContent;
+import com.devscope.model.dto.GeminiGenerateContentRequest;
+import com.devscope.model.dto.GeminiGenerationConfig;
+import com.devscope.model.dto.GeminiPart;
 import com.devscope.model.dto.QueryRequest;
 import com.devscope.model.dto.QueryResponse;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -11,8 +15,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class LLMSynthesizer {
@@ -22,10 +26,16 @@ public class LLMSynthesizer {
 
     private final RestClient restClient;
 
-    @Value("${devscope.llm.model:gpt-4o}")
+    @Value("${devscope.llm.model:models/gemini-3-flash}")
     private String model;
 
-    public LLMSynthesizer(@Qualifier("openAiRestClient") RestClient restClient) {
+    @Value("${devscope.llm.temperature:0.0}")
+    private double temperature;
+
+    @Value("${devscope.llm.max-output-tokens:1000}")
+    private int maxOutputTokens;
+
+    public LLMSynthesizer(@Qualifier("llmRestClient") RestClient restClient) {
         this.restClient = restClient;
     }
 
@@ -35,26 +45,35 @@ public class LLMSynthesizer {
         String systemPrompt = buildSystemPrompt(mode);
         String userMessage = buildUserMessage(question, chunksContext, mode);
 
-        Map<String, Object> request = Map.of(
-                "model", model,
-                "messages", List.of(
-                        Map.of("role", "system", "content", systemPrompt),
-                        Map.of("role", "user", "content", userMessage)
-                ),
-                "response_format", Map.of("type", "json_object"),
-                "temperature", 0.2
-        );
+        GeminiGenerateContentRequest request = GeminiGenerateContentRequest.builder()
+                .systemInstruction(GeminiContent.builder()
+                        .parts(List.of(GeminiPart.builder().text(systemPrompt).build()))
+                        .build())
+                .contents(List.of(GeminiContent.builder()
+                        .role("user")
+                        .parts(List.of(GeminiPart.builder().text(userMessage).build()))
+                        .build()))
+                .generationConfig(GeminiGenerationConfig.builder()
+                        .temperature(temperature)
+                        .maxOutputTokens(maxOutputTokens)
+                        .build())
+                .build();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("/v1beta/");
+        sb.append(model);
+        sb.append(":generateContent");
 
         try {
             String responseBody = restClient.post()
-                    .uri("/chat/completions")
+                    .uri(sb.toString())
                     .body(request)
                     .retrieve()
                     .body(String.class);
 
             JsonNode root = MAPPER.readTree(responseBody);
-            String content = root.path("choices").get(0).path("message").path("content").asText();
-            JsonNode parsed = MAPPER.readTree(content);
+            String content = extractGeminiText(root);
+            JsonNode parsed = MAPPER.readTree(stripJsonFence(content));
 
             List<String> relevantFiles = MAPPER.convertValue(
                     parsed.path("relevant_files"), MAPPER.getTypeFactory()
@@ -98,8 +117,9 @@ public class LLMSynthesizer {
     private String buildSystemPrompt(QueryRequest.QueryMode mode) {
         if (mode == QueryRequest.QueryMode.EXPLAIN_LIKE_NEW) {
             return """
+                    You are a strict RAG assistant. Only use provided context.
                     You are DevScope, an expert engineering mentor helping new engineers understand a codebase.
-                    Given relevant code snippets, explain what's happening in plain English — like you're onboarding a junior engineer.
+                    Given relevant code snippets, explain what's happening in plain English - like you're onboarding a junior engineer.
                     Avoid jargon. Use analogies. Walk through the flow step by step.
 
                     Respond with valid JSON:
@@ -111,6 +131,7 @@ public class LLMSynthesizer {
                     """;
         }
         return """
+                You are a strict RAG assistant. Only use provided context.
                 You are DevScope, an AI assistant that helps engineers understand codebases.
                 Given relevant code chunks, answer the user's question precisely.
                 Identify the key files, explain the flow, and summarize the call chain if applicable.
@@ -130,15 +151,11 @@ public class LLMSynthesizer {
                 ? "Explain like I'm new to this codebase: "
                 : "";
         return """
-                Question: %s%s
-
-                Relevant code from the codebase:
-                ---
+                CONTEXT:
                 %s
-                ---
 
-                Answer the question based on these code chunks.
-                """.formatted(prefix, question, chunksContext);
+                USER QUESTION: %s%s
+                """.formatted(chunksContext, prefix, question);
     }
 
     private String buildChunkContext(List<VectorSearchService.ScoredChunk> chunks) {
@@ -154,5 +171,39 @@ public class LLMSynthesizer {
             sb.append("\n\n");
         }
         return sb.toString();
+    }
+
+    private String extractGeminiText(JsonNode root) {
+        JsonNode parts = root.path("candidates").path(0).path("content").path("parts");
+        if (!parts.isArray() || parts.isEmpty()) {
+            throw new IllegalStateException("Gemini response did not contain generated text");
+        }
+
+        List<String> texts = new ArrayList<>();
+        for (JsonNode part : parts) {
+            String text = part.path("text").asText("");
+            if (!text.isBlank()) {
+                texts.add(text);
+            }
+        }
+
+        if (texts.isEmpty()) {
+            throw new IllegalStateException("Gemini response text was empty");
+        }
+        return String.join("\n", texts);
+    }
+
+    private String stripJsonFence(String content) {
+        String trimmed = content.trim();
+        if (!trimmed.startsWith("```")) {
+            return trimmed;
+        }
+
+        int firstNewLine = trimmed.indexOf('\n');
+        int lastFence = trimmed.lastIndexOf("```");
+        if (firstNewLine < 0 || lastFence <= firstNewLine) {
+            return trimmed;
+        }
+        return trimmed.substring(firstNewLine + 1, lastFence).trim();
     }
 }
