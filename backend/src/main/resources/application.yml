@@ -1,8 +1,11 @@
+server:
+  port: ${PORT:8080}
+
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/devscope
-    username: devscope
-    password: devscope
+    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:devscope}
+    username: ${PGUSER:devscope}
+    password: ${PGPASSWORD:devscope}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:

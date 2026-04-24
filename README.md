@@ -244,7 +244,15 @@ Secrets are injected via environment variables — never hardcoded.
 
 | Env Variable | Required | Description |
 |-------------|----------|-------------|
-| `OPENAI_API_KEY` | Yes | OpenAI API key for embeddings + LLM |
+| `DEVSCOPE_LLM_API_KEY` | Yes | Gemini API key (or provider key if you change `DEVSCOPE_LLM_BASE_URL`) |
+| `DEVSCOPE_LLM_BASE_URL` | No | Defaults to Google Generative Language API base URL |
+| `DEVSCOPE_LLM_MODEL` | No | Defaults to `models/gemini-2.5-flash-lite` |
+| `DEVSCOPE_EMBEDDING_MODEL` | No | Defaults to `models/gemini-embedding-2-preview` |
+| `PGHOST` | Yes (prod) | Postgres host (Railway sets this for Postgres) |
+| `PGPORT` | Yes (prod) | Postgres port |
+| `PGDATABASE` | Yes (prod) | Postgres database name |
+| `PGUSER` | Yes (prod) | Postgres username |
+| `PGPASSWORD` | Yes (prod) | Postgres password |
 
 To swap the LLM to Claude, set `devscope.llm.model` and point the base URL to the Anthropic API.
 
@@ -258,3 +266,33 @@ cd backend
 ```
 
 Integration tests use Testcontainers (requires Docker running).
+
+---
+
+## Deploying to Railway (CLI)
+
+From the repo root:
+
+```bash
+cd backend
+railway login
+railway init -n devscope-backend
+railway add -s backend
+railway add -d postgres
+railway variable set -s backend DEVSCOPE_LLM_API_KEY=your_key_here
+railway variable set -s backend \
+  PGHOST='${{Postgres.PGHOST}}' \
+  PGPORT='${{Postgres.PGPORT}}' \
+  PGDATABASE='${{Postgres.PGDATABASE}}' \
+  PGUSER='${{Postgres.PGUSER}}' \
+  PGPASSWORD='${{Postgres.PGPASSWORD}}'
+railway up -s backend --ci
+```
+
+If the build fails with `Could not find or load main class org.gradle.wrapper.GradleWrapperMain`, retry with:
+
+```bash
+railway up -s backend --ci --no-gitignore
+```
+
+The app binds to `PORT` automatically on Railway, and reads Postgres connection info from `PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD`.
