@@ -1,6 +1,7 @@
 FROM gradle:8.7-jdk21 AS build
 WORKDIR /app
 COPY . .
+RUN ls -R
 RUN ./gradlew --no-daemon bootJar -x test
 
 FROM eclipse-temurin:21-jre
