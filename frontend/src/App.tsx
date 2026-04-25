@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useParams } from 'react-router-dom';
-import { Plus, Search, Code, Book, ExternalLink, Layout as LayoutIcon, ChevronRight, Activity, Terminal, ChevronDown, Folder, Calendar } from 'lucide-react';
+import { Plus, Search, Code, Book, ExternalLink, Layout as LayoutIcon, ChevronRight, Activity, Terminal, Folder, Calendar } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { api } from './api';
