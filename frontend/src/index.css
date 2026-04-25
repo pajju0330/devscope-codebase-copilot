@@ -76,13 +76,33 @@ header .container {
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 1.5rem;
-  transition: transform 0.2s, border-color 0.2s;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
 }
 
 .card:hover {
   border-color: var(--accent);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-secondary));
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.card:hover::before {
+  opacity: 1;
 }
 
 .btn {
@@ -95,6 +115,12 @@ header .container {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  transition: all 0.2s;
+}
+
+.btn:hover {
+  border-color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .btn-primary {
@@ -105,6 +131,7 @@ header .container {
 
 .btn-primary:hover {
   background: var(--accent);
+  border-color: var(--accent);
 }
 
 input, textarea {
@@ -124,14 +151,26 @@ input:focus, textarea:focus {
 }
 
 .status-badge {
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: bold;
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-.status-ready { background: rgba(35, 134, 54, 0.2); color: var(--success); }
-.status-processing { background: rgba(210, 153, 34, 0.2); color: var(--warning); }
-.status-pending { background: rgba(139, 148, 158, 0.2); color: var(--text-dim); }
-.status-failed { background: rgba(248, 81, 73, 0.2); color: var(--error); }
+.status-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-ready { background: rgba(35, 134, 54, 0.15); color: #3fb950; border: 1px solid rgba(63, 185, 80, 0.3); }
+.status-processing { background: rgba(210, 153, 34, 0.15); color: #d29922; border: 1px solid rgba(210, 153, 34, 0.3); }
+.status-pending { background: rgba(139, 148, 158, 0.15); color: #8b949e; border: 1px solid rgba(139, 148, 158, 0.3); }
+.status-failed { background: rgba(248, 81, 73, 0.15); color: #f85149; border: 1px solid rgba(248, 81, 73, 0.3); }

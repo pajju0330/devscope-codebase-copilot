@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useParams } from 'react-router-dom';
-import { Plus, Search, Code, Book, ExternalLink, Layout as LayoutIcon, ChevronRight, Activity, Terminal } from 'lucide-react';
+import { Plus, Search, Code, Book, ExternalLink, Layout as LayoutIcon, ChevronRight, Activity, Terminal, ChevronDown, Folder, Calendar } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { api } from './api';
@@ -136,18 +136,31 @@ function Dashboard() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
           {repos.map(repo => (
-            <Link key={repo.repoId} to={`/repo/${repo.repoId}`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <h3 style={{ margin: 0 }}>{repo.repoName}</h3>
+            <Link key={repo.repoId} to={`/repo/${repo.repoId}`} className="card" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ padding: '0.5rem', background: 'rgba(88, 166, 255, 0.1)', borderRadius: '8px', color: 'var(--accent)' }}>
+                    <Folder size={20} />
+                  </div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>{repo.repoName}</h3>
+                </div>
                 <span className={`status-badge status-${repo.status.toLowerCase()}`}>
                   {repo.status}
                 </span>
               </div>
-              <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: '1rem', wordBreak: 'break-all' }}>
+              
+              <p style={{ color: 'var(--text-dim)', fontSize: '0.85rem', marginBottom: '1.5rem', wordBreak: 'break-all', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', flexGrow: 1 }}>
                 {repo.repoUrl}
               </p>
-              <div style={{ display: 'flex', alignItems: 'center', color: 'var(--accent)', fontWeight: '600' }}>
-                Query Base <ChevronRight size={18} />
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: '1rem', marginTop: 'auto' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-dim)', fontSize: '0.75rem' }}>
+                  <Calendar size={14} />
+                  <span>{new Date(repo.createdAt).toLocaleDateString()}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', color: 'var(--accent)', fontSize: '0.85rem', fontWeight: '600', gap: '0.25rem' }}>
+                  Query <ChevronRight size={16} />
+                </div>
               </div>
             </Link>
           ))}
