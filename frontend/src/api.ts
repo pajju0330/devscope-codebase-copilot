@@ -1,9 +1,9 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 export interface Repo {
-  id: string;
-  name: string;
-  url: string;
+  repoId: string;
+  repoName: string;
+  repoUrl: string;
   status: 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED';
   createdAt: string;
 }
@@ -30,11 +30,11 @@ export const api = {
     return response.json();
   },
 
-  async ingestRepo(name: string, url: string): Promise<Repo> {
+  async ingestRepo(repoName: string, repoUrl: string): Promise<Repo> {
     const response = await fetch(`${API_BASE_URL}/repos/ingest/git`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, url }),
+      body: JSON.stringify({ repoName, repoUrl }),
     });
     if (!response.ok) throw new Error('Failed to start ingestion');
     return response.json();

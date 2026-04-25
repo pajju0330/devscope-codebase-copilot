@@ -4,7 +4,7 @@ import { Plus, Search, Code, Book, ExternalLink, Layout as LayoutIcon, ChevronRi
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { api } from './api';
-import type { Repo, QueryResponse } from './api';
+import type { Repo, QueryResponse, CodeChunk } from './api';
 import './App.css';
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -17,7 +17,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             DevScope
           </Link>
           <nav>
-            <a href="https://github.com/devscope" target="_blank" className="btn">
+            <a href="https://github.com/pajju0330/devscope-codebase-copilot" target="_blank" className="btn" rel="noreferrer">
               <ExternalLink size={18} />
               GitHub
             </a>
@@ -31,10 +31,67 @@ function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
+function CollapsibleChunk({ chunk }: { chunk: CodeChunk }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: '1rem' }}>
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ 
+          width: '100%', 
+          background: 'rgba(255,255,255,0.05)', 
+          border: 'none', 
+          borderBottom: isOpen ? '1px solid var(--border)' : 'none',
+          padding: '0.75rem 1rem', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          color: 'inherit',
+          textAlign: 'left',
+          cursor: 'pointer'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', overflow: 'hidden' }}>
+          <ChevronRight 
+            size={18} 
+            style={{ 
+              transform: isOpen ? 'rotate(90deg)' : 'none', 
+              transition: 'transform 0.2s',
+              color: 'var(--accent)',
+              flexShrink: 0
+            }} 
+          />
+          <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: 'var(--accent)', wordBreak: 'break-all' }}>
+            {chunk.filePath}
+          </span>
+        </div>
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', whiteSpace: 'nowrap', marginLeft: '1rem' }}>
+          Lines {chunk.startLine}-{chunk.endLine}
+        </span>
+      </button>
+      
+      {isOpen && (
+        <div style={{ animation: 'fadeIn 0.2s ease-out' }}>
+          <SyntaxHighlighter
+            language="java"
+            style={vscDarkPlus}
+            customStyle={{ margin: 0, padding: '1rem', fontSize: '0.85rem' }}
+            showLineNumbers
+            startingLineNumber={chunk.startLine}
+          >
+            {chunk.content}
+          </SyntaxHighlighter>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Dashboard() {
   const [repos, setRepos] = useState<Repo[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newRepo, setNewRepo] = useState({ name: '', url: '' });
+  const [newRepo, setNewRepo] = useState({ repoName: '', repoUrl: '' });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -55,9 +112,9 @@ function Dashboard() {
   const handleAddRepo = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.ingestRepo(newRepo.name, newRepo.url);
+      await api.ingestRepo(newRepo.repoName, newRepo.repoUrl);
       setIsModalOpen(false);
-      setNewRepo({ name: '', url: '' });
+      setNewRepo({ repoName: '', repoUrl: '' });
       loadRepos();
     } catch (err) {
       alert('Failed to add repository');
@@ -79,15 +136,15 @@ function Dashboard() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
           {repos.map(repo => (
-            <Link key={repo.id} to={`/repo/${repo.id}`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
+            <Link key={repo.repoId} to={`/repo/${repo.repoId}`} className="card" style={{ textDecoration: 'none', color: 'inherit' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <h3 style={{ margin: 0 }}>{repo.name}</h3>
+                <h3 style={{ margin: 0 }}>{repo.repoName}</h3>
                 <span className={`status-badge status-${repo.status.toLowerCase()}`}>
                   {repo.status}
                 </span>
               </div>
               <p style={{ color: 'var(--text-dim)', fontSize: '0.9rem', marginBottom: '1rem', wordBreak: 'break-all' }}>
-                {repo.url}
+                {repo.repoUrl}
               </p>
               <div style={{ display: 'flex', alignItems: 'center', color: 'var(--accent)', fontWeight: '600' }}>
                 Query Base <ChevronRight size={18} />
@@ -115,8 +172,8 @@ function Dashboard() {
                   type="text" 
                   placeholder="e.g. My Awesome App" 
                   required 
-                  value={newRepo.name}
-                  onChange={e => setNewRepo({ ...newRepo, name: e.target.value })}
+                  value={newRepo.repoName}
+                  onChange={e => setNewRepo({ ...newRepo, repoName: e.target.value })}
                 />
               </div>
               <div>
@@ -125,8 +182,8 @@ function Dashboard() {
                   type="url" 
                   placeholder="https://github.com/user/repo" 
                   required 
-                  value={newRepo.url}
-                  onChange={e => setNewRepo({ ...newRepo, url: e.target.value })}
+                  value={newRepo.repoUrl}
+                  onChange={e => setNewRepo({ ...newRepo, repoUrl: e.target.value })}
                 />
               </div>
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
@@ -178,9 +235,9 @@ function RepoQueryView() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
             <Link to="/" style={{ color: 'var(--text-dim)' }}>Repositories</Link>
             <ChevronRight size={16} style={{ color: 'var(--text-dim)' }} />
-            <h1 style={{ margin: 0 }}>{repo.name}</h1>
+            <h1 style={{ margin: 0 }}>{repo.repoName}</h1>
           </div>
-          <p style={{ color: 'var(--text-dim)' }}>{repo.url}</p>
+          <p style={{ color: 'var(--text-dim)' }}>{repo.repoUrl}</p>
         </div>
 
         <form onSubmit={handleQuery} style={{ position: 'relative', marginBottom: '2rem' }}>
@@ -218,25 +275,7 @@ function RepoQueryView() {
                 Code References
               </h2>
               {result.chunks.map((chunk, idx) => (
-                <div key={idx} className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                  <div style={{ padding: '0.75rem 1rem', background: 'rgba(255,255,255,0.05)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '0.9rem', color: 'var(--accent)' }}>
-                      {chunk.filePath}
-                    </span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
-                      Lines {chunk.startLine}-{chunk.endLine}
-                    </span>
-                  </div>
-                  <SyntaxHighlighter
-                    language="java"
-                    style={vscDarkPlus}
-                    customStyle={{ margin: 0, padding: '1rem', fontSize: '0.85rem' }}
-                    showLineNumbers
-                    startingLineNumber={chunk.startLine}
-                  >
-                    {chunk.content}
-                  </SyntaxHighlighter>
-                </div>
+                <CollapsibleChunk key={idx} chunk={chunk} />
               ))}
             </div>
           </div>
@@ -251,12 +290,17 @@ function RepoQueryView() {
           </h3>
           {result ? (
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {result.relevantFiles.map((file, idx) => (
-                <li key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-dim)' }}>
-                  <Code size={14} />
-                  {file}
-                </li>
-              ))}
+              {result.relevantFiles.map((file, idx) => {
+                const fileName = file.split('/').pop();
+                return (
+                  <li key={idx} title={file} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--text-dim)', overflow: 'hidden' }}>
+                    <Code size={14} style={{ flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {fileName}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p style={{ fontSize: '0.9rem', color: 'var(--text-dim)', fontStyle: 'italic' }}>
